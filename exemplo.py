@@ -1,4 +1,10 @@
-from metodos import ajustar_minimos_quadrados, interpolacao_lagrange, interpolacao_newton
+from metodos import (
+    ajustar_minimos_quadrados,
+    construir_coeficientes_polinomio,
+    interpolacao_lagrange,
+    interpolacao_newton,
+    plotar_polinomio,
+)
 
 
 def converter_numero(texto: str) -> float:
@@ -53,10 +59,21 @@ def main() -> None:
 
     if opcao == "1":
         try:
-            # O método de Lagrange precisa de um valor x para avaliar o polinômio.
             x = converter_numero(input("Digite o valor de x para avaliar: "))
             resultado = interpolacao_lagrange(pontos, x)
             print(f"Resultado de Lagrange em x = {x}: {resultado}")
+
+            caminho = input("Deseja salvar o gráfico? Informe o nome do arquivo (ou deixe em branco para não salvar): ").strip()
+            if caminho:
+                coeficientes = construir_coeficientes_polinomio(pontos, "lagrange")
+                plotar_polinomio(
+                    pontos,
+                    coeficientes,
+                    caminho_salvar=caminho,
+                    titulo="Interpolação de Lagrange",
+                    destacar_x=x,
+                )
+                print(f"Gráfico salvo em {caminho}")
         except ValueError as erro:
             print(f"Erro: {erro}")
     elif opcao == "2":

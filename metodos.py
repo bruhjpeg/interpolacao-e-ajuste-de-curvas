@@ -50,29 +50,20 @@ def construir_coeficientes_polinomio(pontos: List[Ponto], metodo: str, grau: int
 
 
 def _coeficientes_lagrange(pontos: List[Ponto]) -> List[float]:
-    """Constrói os coeficientes do polinômio interpolador de Lagrange.
-
-    O método de Lagrange monta um polinômio que passa por todos os pontos dados.
-    Para cada ponto (xi, yi), define-se uma função base Li(x) que vale 1 em xi e 0
-    em todos os outros pontos de interpolação. O polinômio final é a soma
-    yi * Li(x).
-    """
     grau = len(pontos) - 1
     resultado = [0.0] * (grau + 1)
 
     for i, (xi, yi) in enumerate(pontos):
-        # Cada laço monta uma base de Lagrange para o ponto atual.
         base = [1.0]
         denominador = 1.0
+
         for j, (xj, _) in enumerate(pontos):
             if i == j:
                 continue
-            # Multiplica a base atual por (x - xj), formando o produto dos
-            # fatores necessários para cancelar os demais pontos.
+
             base = _multiplicar_por_fator_linear(base, xj)
             denominador *= xi - xj
 
-        # Divide cada coeficiente pelo denominador e soma a contribuição do ponto.
         for poder, coef in enumerate([c / denominador for c in base]):
             resultado[poder] += yi * coef
 
@@ -140,38 +131,69 @@ def formatar_polinomio(coeficientes: List[float]) -> str:
     return "0" if not termos else " + ".join(termos)
 
 
-def plotar_polinomio(pontos: List[Ponto], coeficientes: List[float], caminho_salvar: str | None = None) -> None:
-    """Plota os pontos e o polinômio correspondente.
-
-    Esta função gera um gráfico simples com o polinômio e os pontos que foram
-    usados para construir a aproximação. Se um caminho for fornecido, a figura
-    também é salva em disco.
-    """
+def plotar_polinomio(
+    pontos: List[Ponto],
+    coeficientes: List[float],
+    caminho_salvar: str | None = None,
+    titulo: str = "Interpolação / Ajuste de Curvas",
+    destacar_x: float | None = None,
+) -> None:
+    """Plota os pontos e o polinômio correspondente com destaque opcional para um x específico."""
     import matplotlib
 
-    # Usa o backend não interativo para que o gráfico possa ser criado sem abrir
-    # uma janela de interface do sistema.
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     valores_x = [x for x, _ in pontos]
     valores_y = [y for _, y in pontos]
-    xmin, xmax = min(valores_x) - 1, max(valores_x) + 1
-    eixos_x = [xmin + (xmax - xmin) * i / 200 for i in range(201)]
+
+    if len(valores_x) >= 2:
+        margem_x = 0.08 * (max(valores_x) - min(valores_x) or 1)
+        xmin, xmax = min(valores_x) - margem_x, max(valores_x) + margem_x
+    else:
+        xmin, xmax = valores_x[0] - 1, valores_x[0] + 1
+
+    if len(valores_y) >= 2:
+        margem_y = 0.08 * (max(valores_y) - min(valores_y) or 1)
+        ymin, ymax = min(valores_y) - margem_y, max(valores_y) + margem_y
+    else:
+        ymin, ymax = valores_y[0] - 1, valores_y[0] + 1
+
+    eixos_x = [xmin + (xmax - xmin) * i / 500 for i in range(501)]
     eixos_y = [avaliar_polinomio(coeficientes, x) for x in eixos_x]
 
-    plt.figure(figsize=(7, 4))
-    plt.plot(eixos_x, eixos_y, label="Polinômio", color="tab:blue")
-    plt.scatter(valores_x, valores_y, color="tab:red", label="Pontos")
-    plt.xlabel("x")
-    plt.ylabel("y")
-    plt.title("Interpolação / Ajuste de Curvas")
-    plt.grid(True, alpha=0.3)
-    plt.legend()
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    ax.plot(eixos_x, eixos_y, label="Polinômio", color="tab:blue", linewidth=2.2)
+    ax.scatter(valores_x, valores_y, color="tab:red", s=70, label="Pontos", zorder=3)
+
+    for x, y in zip(valores_x, valores_y):
+        ax.annotate(f"({x:.3g}, {y:.3g})", (x, y), xytext=(6, 6), textcoords="offset points", fontsize=8)
+
+    if destacar_x is not None:
+        valor_destacado = avaliar_polinomio(coeficientes, destacar_x)
+        ax.axvline(destacar_x, color="tab:orange", linestyle="--", linewidth=1.2, alpha=0.8)
+        ax.scatter([destacar_x], [valor_destacado], color="tab:orange", s=90, zorder=4)
+        ax.annotate(
+            f"x = {destacar_x:.0f}\ny ≈ {valor_destacado:.3f}",
+            (destacar_x, valor_destacado),
+            xytext=(8, 8),
+            textcoords="offset points",
+            fontsize=9,
+            color="tab:orange",
+        )
+
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_title(titulo)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
 
     if caminho_salvar:
-        plt.savefig(caminho_salvar)
-    plt.close()
+        fig.savefig(caminho_salvar, dpi=200, bbox_inches="tight")
+    plt.close(fig)
 
 
 def interpolacao_lagrange(pontos: List[Ponto], x: float) -> float:
