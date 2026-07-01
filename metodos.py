@@ -2,21 +2,42 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
-# Tipo usado para armazenar um ponto (x, y).
+# Este módulo reúne as principais ferramentas do projeto.
+# Ele implementa três abordagens para trabalhar com dados discretos:
+# 1) interpolação de Lagrange,
+# 2) interpolação de Newton,
+# 3) ajuste por mínimos quadrados.
+#
+# A ideia central é transformar um conjunto de pontos (x, y) em uma função
+# que aproxime ou passe exatamente pelos valores fornecidos, dependendo do método.
+
+# Tipo usado para representar um ponto do plano cartesiano.
 Ponto = Tuple[float, float]
 
 
 def _multiplicar_por_fator_linear(pol: List[float], raiz: float) -> List[float]:
-    """Multiplica um polinômio por (x - raiz)."""
+    """Multiplica um polinômio por (x - raiz).
+
+    Esta função é usada como peça auxiliar para montar polinômios a partir
+    de fatores lineares. Em termos práticos, ela transforma um polinômio
+    representado por coeficientes em um novo polinômio que já contém o fator
+    (x - raiz).
+    """
     resultado = [0.0] * (len(pol) + 1)
     for i, coef in enumerate(pol):
+        # O coeficiente atual é deslocado para a direita em uma posição,
+        # porque multiplicar por (x - raiz) aumenta o grau em 1.
         resultado[i] += -raiz * coef
         resultado[i + 1] += coef
     return resultado
 
 
 def construir_coeficientes_polinomio(pontos: List[Ponto], metodo: str, grau: int | None = None) -> List[float]:
-    """Retorna os coeficientes do polinômio para o método escolhido."""
+    """Retorna os coeficientes do polinômio correspondente ao método escolhido.
+
+    Os coeficientes são devolvidos em ordem crescente de grau, que é a forma
+    usada pelas funções de avaliação e formatação do projeto.
+    """
     if metodo == "lagrange":
         return _coeficientes_lagrange(pontos)
     if metodo == "newton":
@@ -29,19 +50,29 @@ def construir_coeficientes_polinomio(pontos: List[Ponto], metodo: str, grau: int
 
 
 def _coeficientes_lagrange(pontos: List[Ponto]) -> List[float]:
-    """Constrói os coeficientes do polinômio interpolador de Lagrange."""
+    """Constrói os coeficientes do polinômio interpolador de Lagrange.
+
+    O método de Lagrange monta um polinômio que passa por todos os pontos dados.
+    Para cada ponto (xi, yi), define-se uma função base Li(x) que vale 1 em xi e 0
+    em todos os outros pontos de interpolação. O polinômio final é a soma
+    yi * Li(x).
+    """
     grau = len(pontos) - 1
     resultado = [0.0] * (grau + 1)
 
     for i, (xi, yi) in enumerate(pontos):
+        # Cada laço monta uma base de Lagrange para o ponto atual.
         base = [1.0]
         denominador = 1.0
         for j, (xj, _) in enumerate(pontos):
             if i == j:
                 continue
+            # Multiplica a base atual por (x - xj), formando o produto dos
+            # fatores necessários para cancelar os demais pontos.
             base = _multiplicar_por_fator_linear(base, xj)
             denominador *= xi - xj
 
+        # Divide cada coeficiente pelo denominador e soma a contribuição do ponto.
         for poder, coef in enumerate([c / denominador for c in base]):
             resultado[poder] += yi * coef
 
@@ -49,17 +80,27 @@ def _coeficientes_lagrange(pontos: List[Ponto]) -> List[float]:
 
 
 def _coeficientes_newton(pontos: List[Ponto]) -> List[float]:
-    """Constrói os coeficientes do polinômio interpolador de Newton."""
+    """Constrói os coeficientes do polinômio interpolador de Newton.
+
+    A interpolação de Newton usa diferenças divididas para montar um polinômio
+    na forma:
+    P(x) = a0 + a1(x - x0) + a2(x - x0)(x - x1) + ...
+
+    Isso torna a construção incremental e bastante útil quando se quer adicionar
+    novos pontos sem reconstruir tudo do zero.
+    """
     diferencas = [[0.0] * len(pontos) for _ in range(len(pontos))]
     for i, (_, yi) in enumerate(pontos):
         diferencas[i][0] = yi
 
+    # Cálculo das diferenças divididas.
     for j in range(1, len(pontos)):
         for i in range(len(pontos) - j):
             numerador = diferencas[i + 1][j - 1] - diferencas[i][j - 1]
             denominador = pontos[i + j][0] - pontos[i][0]
             diferencas[i][j] = numerador / denominador
 
+    # Agora o polinômio é montado a partir das diferenças divididas.
     polinomio = [diferencas[0][0]]
     for i in range(1, len(pontos)):
         polinomio = _multiplicar_por_fator_linear(polinomio, pontos[i - 1][0])
@@ -69,7 +110,10 @@ def _coeficientes_newton(pontos: List[Ponto]) -> List[float]:
 
 
 def avaliar_polinomio(coeficientes: List[float], x: float) -> float:
-    """Avalia um polinômio cujos coeficientes estão em ordem crescente de grau."""
+    """Avalia um polinômio cujos coeficientes estão em ordem crescente de grau.
+
+    A implementação usa o método de Horner, que é eficiente e numericamente estável.
+    """
     valor = 0.0
     for coef in reversed(coeficientes):
         valor = valor * x + coef
@@ -77,7 +121,11 @@ def avaliar_polinomio(coeficientes: List[float], x: float) -> float:
 
 
 def formatar_polinomio(coeficientes: List[float]) -> str:
-    """Converte os coeficientes em uma string legível para o polinômio."""
+    """Converte os coeficientes em uma string legível para o polinômio.
+
+    A função transforma a lista de coeficientes em uma representação parecida
+    com "3x^2 - 2x + 1", facilitando a leitura do resultado.
+    """
     termos = []
     for grau, coef in enumerate(coeficientes):
         if abs(coef) < 1e-12:
@@ -93,9 +141,16 @@ def formatar_polinomio(coeficientes: List[float]) -> str:
 
 
 def plotar_polinomio(pontos: List[Ponto], coeficientes: List[float], caminho_salvar: str | None = None) -> None:
-    """Plota os pontos e o polinômio correspondente."""
+    """Plota os pontos e o polinômio correspondente.
+
+    Esta função gera um gráfico simples com o polinômio e os pontos que foram
+    usados para construir a aproximação. Se um caminho for fornecido, a figura
+    também é salva em disco.
+    """
     import matplotlib
 
+    # Usa o backend não interativo para que o gráfico possa ser criado sem abrir
+    # uma janela de interface do sistema.
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -120,7 +175,12 @@ def plotar_polinomio(pontos: List[Ponto], coeficientes: List[float], caminho_sal
 
 
 def interpolacao_lagrange(pontos: List[Ponto], x: float) -> float:
-    """Calcula o valor interpolado pelo método de Lagrange."""
+    """Calcula o valor interpolado pelo método de Lagrange.
+
+    Esse método constrói um polinômio que passa exatamente pelos pontos informados.
+    O valor em x é obtido somando as contribuições de cada ponto por meio das
+    funções basis de Lagrange.
+    """
     if not pontos:
         raise ValueError("A lista de pontos não pode estar vazia.")
 
@@ -130,6 +190,7 @@ def interpolacao_lagrange(pontos: List[Ponto], x: float) -> float:
 
     valor = 0.0
     for i, (xi, yi) in enumerate(pontos):
+        # Cada termo representa a contribuição do ponto i na interpolação.
         base = 1.0
         for j, (xj, _) in enumerate(pontos):
             if i != j:
@@ -139,7 +200,12 @@ def interpolacao_lagrange(pontos: List[Ponto], x: float) -> float:
 
 
 def interpolacao_newton(pontos: List[Ponto], x: float) -> float:
-    """Calcula o valor interpolado pelo método de Newton."""
+    """Calcula o valor interpolado pelo método de Newton.
+
+    O método de Newton usa diferenças divididas para montar um polinômio em uma
+    forma conveniente para avaliação. É particularmente útil quando a lista de
+    pontos aumenta aos poucos.
+    """
     if not pontos:
         raise ValueError("A lista de pontos não pode estar vazia.")
 
@@ -147,6 +213,7 @@ def interpolacao_newton(pontos: List[Ponto], x: float) -> float:
     for i, (_, yi) in enumerate(pontos):
         diferencas[i][0] = yi
 
+    # Computa as diferenças divididas em tabela.
     for j in range(1, len(pontos)):
         for i in range(len(pontos) - j):
             numerador = diferencas[i + 1][j - 1] - diferencas[i][j - 1]
@@ -155,6 +222,7 @@ def interpolacao_newton(pontos: List[Ponto], x: float) -> float:
 
     valor = 0.0
     for i in range(len(pontos)):
+        # Cada termo acrescenta um fator do tipo (x - x0)(x - x1)...
         termo = 1.0
         for j in range(i):
             termo *= x - pontos[j][0]
@@ -163,7 +231,12 @@ def interpolacao_newton(pontos: List[Ponto], x: float) -> float:
 
 
 def ajustar_minimos_quadrados(pontos: List[Ponto], grau: int) -> List[float]:
-    """Ajusta um polinômio aos pontos por mínimos quadrados."""
+    """Ajusta um polinômio aos pontos por mínimos quadrados.
+
+    Diferente da interpolação, este método não exige que o polinômio passe
+    exatamente por todos os pontos. Em vez disso, ele busca um polinômio de grau
+    escolhido que minimize o erro quadrático total entre o modelo e os dados.
+    """
     if not pontos:
         raise ValueError("A lista de pontos não pode estar vazia.")
     if grau < 0:
@@ -175,11 +248,13 @@ def ajustar_minimos_quadrados(pontos: List[Ponto], grau: int) -> List[float]:
     matriz = [[0.0] * m for _ in range(m)]
     vetor = [0.0] * m
 
+    # Monta o sistema normal associado ao ajuste por mínimos quadrados.
     for i in range(m):
         for j in range(m):
             matriz[i][j] = sum((x ** i) * (x ** j) for x, _ in pontos)
         vetor[i] = sum((x ** i) * y for x, y in pontos)
 
+    # Resolve o sistema linear usando eliminação de Gauss com pivoteamento.
     for i in range(m):
         pivô = max(range(i, m), key=lambda r: abs(matriz[r][i]))
         if abs(matriz[pivô][i]) < 1e-12:
@@ -203,7 +278,11 @@ def ajustar_minimos_quadrados(pontos: List[Ponto], grau: int) -> List[float]:
 
 
 def _obter_coeficientes(pontos: List[Ponto], opcao: str, grau: int) -> List[float]:
-    """Escolhe os coeficientes com base no método selecionado."""
+    """Escolhe os coeficientes com base no método selecionado.
+
+    Esta função atua como um adaptador entre a interface do menu e os métodos
+    numéricos implementados abaixo.
+    """
     if opcao == "1":
         return construir_coeficientes_polinomio(pontos, "lagrange")
     if opcao == "2":
@@ -212,7 +291,13 @@ def _obter_coeficientes(pontos: List[Ponto], opcao: str, grau: int) -> List[floa
 
 
 def executar_menu_interativo() -> None:
-    """Exibe um menu interativo no terminal para escolher o método e avaliar o polinômio."""
+    """Exibe um menu interativo no terminal para escolher o método e avaliar o polinômio.
+
+    O usuário pode informar os pontos, escolher o método desejado e então:
+    - avaliar o valor do polinômio em um ponto x;
+    - apenas mostrar o polinômio encontrado;
+    - ou gerar um gráfico com os pontos e a curva.
+    """
     print("=" * 60)
     print("INTERPOLAÇÃO E AJUSTE DE CURVAS")
     print("=" * 60)
@@ -232,6 +317,7 @@ def executar_menu_interativo() -> None:
             print("Opção inválida.")
             continue
 
+        # Leitura da quantidade de pontos e dos próprios pontos.
         n = int(input("\nQuantidade de pontos: ").strip())
         pontos: List[Ponto] = []
         valores = input(f"Digite os pontos no formato x0:y0:x1:y1:...:x{n - 1}:y{n - 1}: ").split(":")

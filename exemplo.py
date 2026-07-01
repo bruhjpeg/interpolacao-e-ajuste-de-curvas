@@ -2,7 +2,11 @@ from metodos import ajustar_minimos_quadrados, interpolacao_lagrange, interpolac
 
 
 def converter_numero(texto: str) -> float:
-    """Converte um número aceitando ponto ou vírgula como separador decimal."""
+    """Converte um número aceitando ponto ou vírgula como separador decimal.
+
+    Esta função foi criada para deixar a entrada do usuário mais amigável,
+    já que muitas pessoas escrevem 2,5 em vez de 2.5.
+    """
     texto = texto.strip()
     try:
         return float(texto.replace(",", "."))
@@ -11,7 +15,12 @@ def converter_numero(texto: str) -> float:
 
 
 def ler_pontos() -> list[tuple[float, float]]:
-    """Pede ao usuário os pontos no formato x:y."""
+    """Pede ao usuário os pontos no formato x:y.
+
+    A função lê uma quantidade informada de pontos e transforma as entradas
+    do usuário em uma lista de tuplas (x, y), que é o formato esperado pelas
+    funções numéricas do projeto.
+    """
     try:
         quantidade = int(input("Quantos pontos você quer informar? "))
     except ValueError as erro:
@@ -28,17 +37,23 @@ def ler_pontos() -> list[tuple[float, float]]:
 
 
 def main() -> None:
-    """Menu simples para testar cada método individualmente."""
+    """Menu simples para testar cada método individualmente.
+
+    Este exemplo serve como uma interface prática para o usuário testar rápida-
+    mente os métodos sem precisar alterar o código diretamente.
+    """
     print("Escolha um método:")
     print("1 - Lagrange")
     print("2 - Newton")
     print("3 - Mínimos quadrados")
     opcao = input("Opção: ").strip()
 
+    # Coleta os pontos que serão usados no cálculo.
     pontos = ler_pontos()
 
     if opcao == "1":
         try:
+            # O método de Lagrange precisa de um valor x para avaliar o polinômio.
             x = converter_numero(input("Digite o valor de x para avaliar: "))
             resultado = interpolacao_lagrange(pontos, x)
             print(f"Resultado de Lagrange em x = {x}: {resultado}")
@@ -46,6 +61,7 @@ def main() -> None:
             print(f"Erro: {erro}")
     elif opcao == "2":
         try:
+            # O método de Newton também avalia o polinômio em um ponto x.
             x = converter_numero(input("Digite o valor de x para avaliar: "))
             resultado = interpolacao_newton(pontos, x)
             print(f"Resultado de Newton em x = {x}: {resultado}")
@@ -53,6 +69,7 @@ def main() -> None:
             print(f"Erro: {erro}")
     elif opcao == "3":
         try:
+            # O ajuste por mínimos quadrados precisa do grau do polinômio desejado.
             grau = int(input("Digite o grau do polinômio de ajuste: "))
             coeficientes = ajustar_minimos_quadrados(pontos, grau=grau)
             print("Coeficientes do ajuste:", coeficientes)
