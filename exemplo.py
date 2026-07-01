@@ -1,8 +1,11 @@
 from metodos import (
     ajustar_minimos_quadrados,
+    ajustar_minimos_quadrados_exponencial,
+    avaliar_modelo_exponencial,
     construir_coeficientes_polinomio,
     interpolacao_lagrange,
     interpolacao_newton,
+    plotar_modelo_exponencial,
     plotar_polinomio,
 )
 
@@ -52,6 +55,7 @@ def main() -> None:
     print("1 - Lagrange")
     print("2 - Newton")
     print("3 - Mínimos quadrados")
+    print("4 - Ajuste exponencial")
     opcao = input("Opção: ").strip()
 
     # Coleta os pontos que serão usados no cálculo.
@@ -90,6 +94,26 @@ def main() -> None:
             grau = int(input("Digite o grau do polinômio de ajuste: "))
             coeficientes = ajustar_minimos_quadrados(pontos, grau=grau)
             print("Coeficientes do ajuste:", coeficientes)
+        except ValueError as erro:
+            print(f"Erro: {erro}")
+    elif opcao == "4":
+        try:
+            x = converter_numero(input("Digite o valor de x para avaliar: "))
+            parametros = ajustar_minimos_quadrados_exponencial(pontos)
+            resultado = avaliar_modelo_exponencial(parametros, x)
+            print(f"Parâmetros do ajuste exponencial: a = {parametros[0]}, b = {parametros[1]}")
+            print(f"Resultado exponencial em x = {x}: {resultado}")
+
+            caminho = input("Deseja salvar o gráfico? Informe o nome do arquivo (ou deixe em branco para não salvar): ").strip()
+            if caminho:
+                plotar_modelo_exponencial(
+                    pontos,
+                    parametros,
+                    caminho_salvar=caminho,
+                    titulo="Ajuste Exponencial",
+                    destacar_x=x,
+                )
+                print(f"Gráfico salvo em {caminho}")
         except ValueError as erro:
             print(f"Erro: {erro}")
     else:

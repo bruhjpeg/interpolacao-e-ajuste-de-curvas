@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import List, Tuple
 
 # Este módulo reúne as principais ferramentas do projeto.
@@ -49,25 +50,41 @@ def construir_coeficientes_polinomio(pontos: List[Ponto], metodo: str, grau: int
     raise ValueError("Método inválido.")
 
 
+def _normalizar_coeficientes(coeficientes: List[float]) -> List[float]:
+    """Remove termos nulos no final sem arredondar demais os coeficientes."""
+    coeficientes = [float(coef) for coef in coeficientes]
+    while len(coeficientes) > 1 and abs(coeficientes[-1]) < 1e-15:
+        coeficientes.pop()
+    return coeficientes
+
+
 def _coeficientes_lagrange(pontos: List[Ponto]) -> List[float]:
+    # 1. Preparar o polinômio final
     grau = len(pontos) - 1
     resultado = [0.0] * (grau + 1)
 
+    # 2. Construir uma base de Lagrange para cada ponto
     for i, (xi, yi) in enumerate(pontos):
         base = [1.0]
         denominador = 1.0
 
+        # 3. Calcular a base L_i(x)
         for j, (xj, _) in enumerate(pontos):
             if i == j:
                 continue
 
+            # Monta o numerador: (x - xj)
             base = _multiplicar_por_fator_linear(base, xj)
+
+            # Calcula o denominador: (xi - xj)
             denominador *= xi - xj
 
+        # 4. Multiplicar a base pelo valor yi
         for poder, coef in enumerate([c / denominador for c in base]):
             resultado[poder] += yi * coef
 
-    return [round(c, 12) for c in resultado if abs(c) > 1e-12]
+    # 5. Retornar o polinômio interpolador
+    return _normalizar_coeficientes(resultado)
 
 
 def _coeficientes_newton(pontos: List[Ponto]) -> List[float]:
@@ -196,6 +213,68 @@ def plotar_polinomio(
     plt.close(fig)
 
 
+def plotar_modelo_exponencial(
+    pontos: List[Ponto],
+    parametros: Tuple[float, float],
+    caminho_salvar: str | None = None,
+    titulo: str = "Ajuste Exponencial",
+    destacar_x: float | None = None,
+) -> None:
+    """Plota os pontos e o modelo exponencial correspondente."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    valores_x = [x for x, _ in pontos]
+    valores_y = [y for _, y in pontos]
+
+    if len(valores_x) >= 2:
+        margem_x = 0.08 * (max(valores_x) - min(valores_x) or 1)
+        xmin, xmax = min(valores_x) - margem_x, max(valores_x) + margem_x
+    else:
+        xmin, xmax = valores_x[0] - 1, valores_x[0] + 1
+
+    if len(valores_y) >= 2:
+        margem_y = 0.08 * (max(valores_y) - min(valores_y) or 1)
+        ymin, ymax = min(valores_y) - margem_y, max(valores_y) + margem_y
+    else:
+        ymin, ymax = valores_y[0] - 1, valores_y[0] + 1
+
+    eixos_x = [xmin + (xmax - xmin) * i / 500 for i in range(501)]
+    eixos_y = [avaliar_modelo_exponencial(parametros, x) for x in eixos_x]
+
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    ax.plot(eixos_x, eixos_y, label="Modelo exponencial", color="tab:green", linewidth=2.2)
+    ax.scatter(valores_x, valores_y, color="tab:red", s=70, label="Pontos", zorder=3)
+
+    if destacar_x is not None:
+        valor_destacado = avaliar_modelo_exponencial(parametros, destacar_x)
+        ax.axvline(destacar_x, color="tab:orange", linestyle="--", linewidth=1.2, alpha=0.8)
+        ax.scatter([destacar_x], [valor_destacado], color="tab:orange", s=90, zorder=4)
+        ax.annotate(
+            f"x = {destacar_x:.3g}\ny ≈ {valor_destacado:.3f}",
+            (destacar_x, valor_destacado),
+            xytext=(8, 8),
+            textcoords="offset points",
+            fontsize=9,
+            color="tab:orange",
+        )
+
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_title(titulo)
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+
+    if caminho_salvar:
+        fig.savefig(caminho_salvar, dpi=200, bbox_inches="tight")
+    plt.close(fig)
+
+
 def interpolacao_lagrange(pontos: List[Ponto], x: float) -> float:
     """Calcula o valor interpolado pelo método de Lagrange.
 
@@ -299,6 +378,62 @@ def ajustar_minimos_quadrados(pontos: List[Ponto], grau: int) -> List[float]:
     return [round(c, 12) for c in coeficientes]
 
 
+def ajustar_minimos_quadrados_exponencial(pontos: List[Ponto]) -> Tuple[float, float]:
+    """Ajusta um modelo exponencial do tipo y = a * exp(b * x) por mínimos quadrados.
+
+    A estratégia é linearizar o modelo aplicando o logaritmo natural em ambos os lados:
+    ln(y) = ln(a) + b x.
+    Em seguida, resolve-se um ajuste linear em z = ln(y).
+    """
+    if not pontos:
+        raise ValueError("A lista de pontos não pode estar vazia.")
+    if any(y <= 0 for _, y in pontos):
+        raise ValueError("O ajuste exponencial exige valores positivos de y.")
+
+    xs = [x for x, _ in pontos]
+    zs = [__import__("math").log(y) for _, y in pontos]
+
+    # Ajuste linear z = c0 + c1 * x
+    m = 2
+    matriz = [[0.0] * m for _ in range(m)]
+    vetor = [0.0] * m
+
+    for i in range(m):
+        for j in range(m):
+            matriz[i][j] = sum((x ** i) * (x ** j) for x in xs)
+        vetor[i] = sum((x ** i) * z for x, z in zip(xs, zs))
+
+    for i in range(m):
+        pivô = max(range(i, m), key=lambda r: abs(matriz[r][i]))
+        if abs(matriz[pivô][i]) < 1e-12:
+            raise ValueError("Não foi possível resolver o ajuste exponencial.")
+        matriz[i], matriz[pivô] = matriz[pivô], matriz[i]
+        vetor[i], vetor[pivô] = vetor[pivô], vetor[i]
+        for j in range(i + 1, m):
+            fator = matriz[j][i] / matriz[i][i]
+            for k in range(i, m):
+                matriz[j][k] -= fator * matriz[i][k]
+            vetor[j] -= fator * vetor[i]
+
+    coeficientes = [0.0] * m
+    for i in range(m - 1, -1, -1):
+        soma = vetor[i]
+        for j in range(i + 1, m):
+            soma -= matriz[i][j] * coeficientes[j]
+        coeficientes[i] = soma / matriz[i][i]
+
+    c0, c1 = coeficientes
+    a = math.exp(c0)
+    b = c1
+    return a, b
+
+
+def avaliar_modelo_exponencial(parametros: Tuple[float, float], x: float) -> float:
+    """Avalia o modelo exponencial y = a * exp(b * x)."""
+    a, b = parametros
+    return a * math.exp(b * x)
+
+
 def _obter_coeficientes(pontos: List[Ponto], opcao: str, grau: int) -> List[float]:
     """Escolhe os coeficientes com base no método selecionado.
 
@@ -329,13 +464,14 @@ def executar_menu_interativo() -> None:
         print("1 - Interpolação de Lagrange")
         print("2 - Interpolação de Newton")
         print("3 - Ajuste por Mínimos Quadrados")
+        print("4 - Ajuste Exponencial")
         print("0 - Sair")
         opcao = input("Opção: ").strip()
 
         if opcao == "0":
             print("Encerrando...")
             break
-        if opcao not in {"1", "2", "3"}:
+        if opcao not in {"1", "2", "3", "4"}:
             print("Opção inválida.")
             continue
 
@@ -351,10 +487,26 @@ def executar_menu_interativo() -> None:
             pontos.append((float(valores[i]), float(valores[i + 1])))
 
         print("\nDeseja:")
-        print("1 - Encontrar P(x)")
-        print("2 - Apenas mostrar o polinômio")
+        print("1 - Encontrar valor")
+        print("2 - Mostrar modelo")
         print("3 - Plotar o gráfico")
         acao = input("Opção: ").strip()
+
+        if opcao == "4":
+            parametros = ajustar_minimos_quadrados_exponencial(pontos)
+            if acao == "1":
+                valor_x = float(input("Digite x: ").strip())
+                valor = avaliar_modelo_exponencial(parametros, valor_x)
+                print(f"\nModelo exponencial: y = {parametros[0]:.6g} * exp({parametros[1]:.6g}x)")
+                print(f"f({valor_x}) = {valor}")
+            elif acao == "2":
+                print(f"\nModelo exponencial: y = {parametros[0]:.6g} * exp({parametros[1]:.6g}x)")
+            elif acao == "3":
+                caminho = input("Nome do arquivo para salvar o gráfico (opcional, pressione Enter para só mostrar): ").strip()
+                plotar_modelo_exponencial(pontos, parametros, caminho_salvar=caminho or None)
+            else:
+                print("Opção inválida.")
+            continue
 
         if acao == "1":
             valor_x = float(input("Digite x: ").strip())
