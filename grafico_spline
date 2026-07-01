@@ -1,0 +1,54 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.interpolate import CubicSpline
+
+# 1. Os 8 pontos de benchmark (Tamanho em Milhões vs Tempo em Horas)
+# É crucial que os dados estejam ordenados por X para a Spline.
+dados = np.array([
+    [10, 0.5], [50, 2.1], [100, 4.8], [200, 9.36], 
+    [500, 22.0], [1000, 48.5], [2000, 91.07], [5000, 226.0]
+])
+x_pontos = dados[:, 0]
+y_pontos = dados[:, 1]
+
+# 2. Criando o Interpolador de Spline Cúbica (Em vez de polinômio de grau 7)
+# Isso é muito mais estável e realista para interpolação de dados.
+interpolador_spline = CubicSpline(x_pontos, y_pontos, bc_type='clamped') # 'clamped' ajuda nas bordas
+
+# 3. Gerando a curva suave para o gráfico (de 10M a 5000M)
+x_curva = np.linspace(10, 5000, 1000)
+y_curva = interpolador_spline(x_curva)
+
+# 4. Calculando a estimativa exata para 250M usando a spline
+x_alvo = 250
+y_alvo = interpolador_spline(x_alvo) # Isso recalcula o valor com base na spline, que é mais estável
+y_alvo_formatado = round(float(y_alvo), 2)
+
+# 5. Configurando o visual do gráfico
+plt.figure(figsize=(10, 6))
+
+# Plotando a curva de Spline Cúbica (Muito mais estável)
+plt.plot(x_curva, y_curva, label="Curva de Interpolação (Spline Cúbica)", color='#1f77b4', linewidth=2.5)
+
+# Plotando os pontos reais da equipe
+plt.scatter(x_pontos, y_pontos, color='#d62728', s=60, zorder=5, label="Benchmarks Executados")
+
+# Destacando a nossa nova estimativa para 250M (Baseada na spline)
+plt.scatter([x_alvo], [y_alvo], color='#2ca02c', s=120, zorder=6, edgecolor='black', 
+            label=f"Nova Estimativa (250M : {y_alvo_formatado}h)")
+
+# Adicionando textos e legendas
+plt.title("Estimativa Estável de Tempo de Treinamento (Spline Cúbica)", fontsize=14, fontweight='bold')
+plt.xlabel("Número de Parâmetros (Milhões)", fontsize=12)
+plt.ylabel("Tempo por Época (Horas)", fontsize=12)
+plt.legend(fontsize=11)
+plt.grid(True, linestyle='--', alpha=0.6)
+
+# Ajustando os limites para focar onde os dados estão e evitar áreas irreais
+plt.xlim(0, 5200)
+# A spline cúbica mantém os valores positivos e dentro de um intervalo realista.
+plt.ylim(0, y_pontos.max() * 1.1) # Dá um respiro de 10% no topo
+
+# Exibindo o gráfico
+plt.tight_layout()
+plt.show()
